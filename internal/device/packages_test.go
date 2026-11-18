@@ -11,13 +11,21 @@ import (
 )
 
 type fakeRunner struct {
-	out   string
-	err   error
-	calls []string
+	out    string
+	err    error
+	calls  []string
+	argv   [][]string
+	stdins [][]byte
 }
 
-func (f *fakeRunner) Run(_ context.Context, _ io.Reader, args ...string) (string, error) {
+func (f *fakeRunner) Run(_ context.Context, stdin io.Reader, args ...string) (string, error) {
 	f.calls = append(f.calls, strings.Join(args, " "))
+	f.argv = append(f.argv, args)
+	var in []byte
+	if stdin != nil {
+		in, _ = io.ReadAll(stdin)
+	}
+	f.stdins = append(f.stdins, in)
 	return f.out, f.err
 }
 
