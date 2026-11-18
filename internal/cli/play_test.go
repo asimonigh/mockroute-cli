@@ -21,8 +21,8 @@ func stateJSON(state string) string {
 // playRunner scripts a device ready to play on the given Android level.
 func playRunner(sdk string, states ...string) *fakeRunner {
 	f := &fakeRunner{responses: baseResponses(), sequences: map[string][]resp{}}
-	// The first status read is the setup check, ready and idle.
-	seq := []resp{{out: bundle(stateJSON("idle"))}}
+	// The first status read is the setup check, the second the one before the start, both ready and idle.
+	seq := []resp{{out: bundle(stateJSON("idle"))}, {out: bundle(stateJSON("idle"))}}
 	for _, s := range states {
 		seq = append(seq, resp{out: bundle(stateJSON(s))})
 	}
@@ -72,6 +72,7 @@ func TestPlayHappyPath(t *testing.T) {
 		"-s S1 shell getprop ro.build.version.sdk",
 		"-s S1 shell content write --uri content://" + pkg + ".cli/gpx",
 		provider("load"),
+		provider("status"),
 		"-s S1 shell am start -n " + pkg + "/com.simonigh.fakemygpslocation.cli.CliStartActivity",
 		provider("status"),
 	}
@@ -138,7 +139,7 @@ func TestPlayProRequired(t *testing.T) {
 
 func TestPlayNeverStarts(t *testing.T) {
 	f := playRunner("34", "idle")
-	f.sequences[provider("status")] = append(f.sequences[provider("status")][:1],
+	f.sequences[provider("status")] = append(f.sequences[provider("status")][:2],
 		resp{out: bundle(failedStatus)})
 	reads := 0
 	f.onCall = func(key string) {
@@ -156,9 +157,9 @@ func TestPlayNeverStarts(t *testing.T) {
 	if last["state"] != "failed" || lastErr["code"] != "gps_lost" {
 		t.Fatalf("last_status missing: %s", out)
 	}
-	// One setup read, then a read every 500 ms from 0 s to 5 s included.
-	if reads != 1+11 {
-		t.Fatalf("status reads = %d, want 12", reads)
+	// One setup read, one before the start, then a read every 500 ms from 0 s to 5 s included.
+	if reads != 2+11 {
+		t.Fatalf("status reads = %d, want 13", reads)
 	}
 }
 
@@ -261,8 +262,66 @@ func TestSetupWithFailedStateSucceeds(t *testing.T) {
 func TestPlayProceedsPastStaleFailedState(t *testing.T) {
 	f := playRunner("34", "simulating")
 	f.sequences[provider("status")][0] = resp{out: bundle(failedStatus)}
+	f.sequences[provider("status")][1] = resp{out: bundle(failedStatus)}
 	code, out, _ := runEnv(t, f, fakeClock, "play", gpxFile(t))
 	if code != 0 || !f.called("content write") || !f.called("--method load") {
 		t.Fatalf("exit %d: %s calls %v", code, out, f.calls)
+	}
+}
+
+func stateAt(state, startedAt string) resp {
+	return resp{out: bundle(`{"state":"` + state + `","started_at":"` + startedAt + `",` + ready + `}`)}
+}
+
+func TestPlayAfterArrivedThatDoesNotStart(t *testing.T) {
+	f := playRunner("34")
+	f.sequences[provider("status")] = []resp{
+		{out: bundle(stateJSON("idle"))},
+		stateAt("arrived", "2026-11-18T10:00:00Z"),
+		stateAt("arrived", "2026-11-18T10:00:00Z"),
+	}
+	code, out, _ := runEnv(t, f, fakeClock, "play", gpxFile(t))
+	if code != 7 || errCode(t, out) != "start_failed" {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+	e, _ := decode(t, out)["error"].(map[string]any)
+	last, _ := e["last_status"].(map[string]any)
+	if last["state"] != "arrived" {
+		t.Fatalf("last_status missing: %s", out)
+	}
+}
+
+func TestPlayAfterArrivedThatStarts(t *testing.T) {
+	f := playRunner("34")
+	f.sequences[provider("status")] = []resp{
+		{out: bundle(stateJSON("idle"))},
+		stateAt("arrived", "2026-11-18T10:00:00Z"),
+		stateAt("arrived", "2026-11-18T10:00:00Z"),
+		stateAt("simulating", "2026-11-18T10:05:00Z"),
+	}
+	code, out, _ := runEnv(t, f, fakeClock, "play", gpxFile(t))
+	if code != 0 || decode(t, out)["state"] != "simulating" {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+}
+
+func TestPlayWaitStaticIsStopped(t *testing.T) {
+	f := playRunner("34", "simulating", "static")
+	code, out, _ := runEnv(t, f, fakeClock, "play", "--wait", gpxFile(t))
+	if code != 7 || errCode(t, out) != "stopped" {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+}
+
+func TestPlayWaitUnknownStateIsProtocolError(t *testing.T) {
+	f := playRunner("34", "simulating", "bogus")
+	code, out, _ := runEnv(t, f, fakeClock, "play", "--wait", gpxFile(t))
+	if code != 3 || errCode(t, out) != "protocol_error" {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+	e, _ := decode(t, out)["error"].(map[string]any)
+	last, _ := e["last_status"].(map[string]any)
+	if last["state"] != "bogus" {
+		t.Fatalf("last_status missing: %s", out)
 	}
 }

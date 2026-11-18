@@ -265,3 +265,15 @@ func TestStartTimesOut(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestSendGPXContentWriteUnsupportedFallsBackToPush(t *testing.T) {
+	path, _ := writeGPX(t)
+	f := &fakeRunner{out: "[ERROR] Unsupported operation: write\nusage: adb shell content [subcommand]\n"}
+	method, err := newClient(f).SendGPX(context.Background(), path, 30)
+	if err != nil || method != "load_pushed" {
+		t.Fatalf("got %q %v", method, err)
+	}
+	if len(f.argv) != 2 || f.argv[1][2] != "push" {
+		t.Fatalf("argv %v", f.argv)
+	}
+}

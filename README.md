@@ -1,6 +1,6 @@
 # mockroute
 
-`mockroute` drives the [MockRoute](https://github.com/asimonigh/mockroute-cli) Android app from a computer, over `adb`. It plays a GPX file as a simulated GPS route on a connected phone, reports the state of the simulation and stops it. Every command prints one line of JSON on stdout and exits with a code that tells what went wrong, so scripts and AI agents can drive it.
+`mockroute` drives the MockRoute Android app from a computer, over `adb`. It plays a GPX file as a simulated GPS route on a connected phone, reports the state of the simulation and stops it. Every command prints one line of JSON on stdout (except `--help` and a bare `mockroute`, which print usage on stderr) and exits with a code that tells what went wrong, so scripts and AI agents can drive it.
 
 ## Requirements
 
@@ -49,7 +49,7 @@ mockroute [--serial S] [--package P] [--adb PATH] <command>
 | `setup` | Grants what `adb` can grant (location, notifications, mock location app, battery) and reports every step. |
 | `play <file.gpx> [--speed km/h] [--wait] [--timeout duration]` | Runs `setup`, loads the GPX file and starts the simulation. |
 | `status` | Prints the state of MockRoute. |
-| `stop` | Stops the running simulation. |
+| `stop` | Stops the running simulation, and a fixed-position mock started from the app. |
 | `version` | Prints `{"cli": "...", "app": {...}}`. `app` is absent when no device or no MockRoute app answers. |
 
 Global options:
@@ -65,10 +65,10 @@ Global options:
 | Option | Meaning |
 |---|---|
 | `--speed km/h` | Constant speed, from 1 to 300. Without it, the times of the GPX file are used when they are reliable, otherwise 50 km/h. The answer's `pace_source` says which one applied (`speed_arg`, `gpx_times` or `default`). |
-| `--wait` | Wait until the route is finished (state `arrived`) before returning. |
+| `--wait` | Wait until the route is finished (state `arrived`) before returning. Returns `stopped` (exit 7) when the simulation is stopped meanwhile, or when a fixed-position mock (`static`) takes over, and `protocol_error` on any other unexpected state. |
 | `--timeout duration` | With `--wait`, give up after this long, for example `30m`. The simulation keeps running. No limit by default. |
 
-`play` runs `setup` first, then replaces any simulation already running.
+`play` runs `setup` first, then replaces any simulation already running. A `play` that does not start the simulation within a few seconds (nothing staged, phone locked) reports `start_failed` with the last `status` in `last_status`; an `arrived` route left from a previous `play` is not mistaken for the new start.
 
 ### `setup`
 
@@ -138,6 +138,8 @@ mockroute stop
 ```
 
 AI agents run their tools under a time limit, often a few minutes. For a long route, do not pass `--wait`: `play` returns as soon as the simulation runs, with `route.estimated_duration_s` in its answer. Read that value, then poll `status` until `state` is `arrived`. Use `--wait` only when the route is shorter than the limit of your tool, and add `--timeout` to stay under it.
+
+`app_outdated` can appear for a few seconds right after installing or updating MockRoute, or rebooting the phone: retry.
 
 Keep the phone unlocked with the screen on: a locked phone can make the start fail (`device_locked` or `start_failed`). Unlock it and run the command again.
 

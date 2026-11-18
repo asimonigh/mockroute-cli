@@ -32,8 +32,9 @@ func speedGiven(fs *flag.FlagSet) bool {
 }
 
 type playStatus struct {
-	State string          `json:"state"`
-	Error json.RawMessage `json:"error"`
+	State     string          `json:"state"`
+	StartedAt string          `json:"started_at"`
+	Error     json.RawMessage `json:"error"`
 }
 
 func readStatus(ctx context.Context, c *device.Client) (playStatus, json.RawMessage, error) {
@@ -91,11 +92,16 @@ func playCommand(ctx context.Context, g globalFlags, env Env, speedSet bool, arg
 	if err := json.Unmarshal(loaded, &load); err != nil {
 		return result{err: clierr.New("protocol_error", "invalid load answer: %v", err)}
 	}
+	// What was running before: an active state left over (an arrived route is held until stop) must not pass for the new start
+	before, _, err := readStatus(ctx, c)
+	if err != nil {
+		return result{err: err}
+	}
 	if err := c.Start(ctx); err != nil {
 		return result{err: err}
 	}
 
-	st, raw, err := awaitStart(ctx, c, env)
+	st, raw, err := awaitStart(ctx, c, env, before)
 	if err != nil {
 		return result{err: err}
 	}
@@ -112,8 +118,13 @@ func playCommand(ctx context.Context, g globalFlags, env Env, speedSet bool, arg
 					}
 				}
 				return result{err: e}
-			case "idle":
+			case "idle", "static":
 				return result{err: clierr.New("stopped", "the simulation was stopped before arrival")}
+			case "simulating", "paused":
+			default:
+				e := clierr.New("protocol_error", "unexpected state %q while waiting", st.State)
+				e.Details = map[string]any{"last_status": raw}
+				return result{err: e}
 			}
 			if g.Timeout > 0 && !env.Now().Before(deadline) {
 				return result{err: clierr.New("timeout", "timed out after %s; the simulation continues", g.Timeout)}
@@ -135,16 +146,20 @@ func playCommand(ctx context.Context, g globalFlags, env Env, speedSet bool, arg
 	return result{value: fields}
 }
 
-// awaitStart polls status until the simulation runs, for at most startPollLimit.
-func awaitStart(ctx context.Context, c *device.Client, env Env) (playStatus, json.RawMessage, error) {
+func isActive(state string) bool {
+	return state == "simulating" || state == "paused" || state == "arrived"
+}
+
+// awaitStart polls status until the simulation runs, for at most startPollLimit. When [before] was already
+// active, only a different started_at proves that this play started.
+func awaitStart(ctx context.Context, c *device.Client, env Env, before playStatus) (playStatus, json.RawMessage, error) {
 	deadline := env.Now().Add(startPollLimit)
 	for {
 		st, raw, err := readStatus(ctx, c)
 		if err != nil {
 			return st, nil, err
 		}
-		switch st.State {
-		case "simulating", "paused", "arrived":
+		if isActive(st.State) && (!isActive(before.State) || st.StartedAt != before.StartedAt) {
 			return st, raw, nil
 		}
 		if !env.Now().Before(deadline) {

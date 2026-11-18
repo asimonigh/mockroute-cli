@@ -186,22 +186,29 @@ func (c *Client) SendGPX(ctx context.Context, path string, sdk int) (string, err
 	defer file.Close()
 
 	if sdk < 28 {
-		out, err := c.Runner.Run(ctx, nil, "-s", c.Serial, "push", path, "/sdcard/Android/data/"+c.Package+"/files/cli/route.gpx")
-		if err != nil {
-			return "", adb.RunError(ctx, out, err)
-		}
-		return "load_pushed", nil
+		return c.pushGPX(ctx, path)
 	}
 	out, err := c.Runner.Run(ctx, file, "-s", c.Serial, "shell", "content", "write", "--uri", "content://"+c.Package+".cli/gpx")
 	switch {
 	case providerMissingIn(out):
 		return "", errAppOutdated()
+	case strings.Contains(out, "Unsupported operation") || strings.Contains(out, "[ERROR]"):
+		// Some builds of the content tool have no write: the tool prints its usage and exits 0
+		return c.pushGPX(ctx, path)
 	case strings.Contains(out, "Exception") || strings.Contains(out, "Error"):
 		return "", clierr.New("protocol_error", "sending the GPX failed: %s", strings.TrimSpace(out))
 	case err != nil:
 		return "", adb.RunError(ctx, out, err)
 	}
 	return "load", nil
+}
+
+func (c *Client) pushGPX(ctx context.Context, path string) (string, error) {
+	out, err := c.Runner.Run(ctx, nil, "-s", c.Serial, "push", path, "/sdcard/Android/data/"+c.Package+"/files/cli/route.gpx")
+	if err != nil {
+		return "", adb.RunError(ctx, out, err)
+	}
+	return "load_pushed", nil
 }
 
 // startTimeout bounds the am start call, which can hang on some Android versions.
