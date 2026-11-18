@@ -110,3 +110,11 @@ func TestLocate(t *testing.T) {
 		}
 	})
 }
+
+func TestLocateSkipsOSDefaultWithoutHome(t *testing.T) {
+	l := locator("darwin", nil, map[string]bool{"/Library/Android/sdk/platform-tools/adb": true}, "")
+	l.Home = ""
+	if _, err := l.Find(""); codeOf(err) != "adb_not_found" {
+		t.Fatalf("want adb_not_found, got %v", err)
+	}
+}

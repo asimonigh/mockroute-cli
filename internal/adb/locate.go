@@ -35,12 +35,13 @@ func (l Locator) Find(explicit string) (string, error) {
 			candidates = append(candidates, root+sep+"platform-tools"+sep+exe)
 		}
 	}
-	switch l.GOOS {
-	case "darwin":
+	switch {
+	case l.Home == "" && l.GOOS != "windows":
+	case l.GOOS == "darwin":
 		candidates = append(candidates, l.Home+"/Library/Android/sdk/platform-tools/"+exe)
-	case "linux":
+	case l.GOOS == "linux":
 		candidates = append(candidates, l.Home+"/Android/Sdk/platform-tools/"+exe)
-	case "windows":
+	case l.GOOS == "windows":
 		if app := l.Getenv("LOCALAPPDATA"); app != "" {
 			candidates = append(candidates, app+`\Android\Sdk\platform-tools\`+exe)
 		}
