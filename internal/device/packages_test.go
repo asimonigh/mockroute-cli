@@ -12,12 +12,13 @@ import (
 
 type fakeRunner struct {
 	out   string
+	err   error
 	calls []string
 }
 
 func (f *fakeRunner) Run(_ context.Context, _ io.Reader, args ...string) (string, error) {
 	f.calls = append(f.calls, strings.Join(args, " "))
-	return f.out, nil
+	return f.out, f.err
 }
 
 func code(err error) string {
@@ -59,5 +60,21 @@ func TestFindPackage(t *testing.T) {
 	_, err := FindPackage(context.Background(), f, "S1", "")
 	if !strings.Contains(err.Error(), "com.simonigh.fakemygpslocation.debug") {
 		t.Errorf("message should list packages: %v", err)
+	}
+}
+
+func TestFindPackageRunnerFailure(t *testing.T) {
+	f := &fakeRunner{out: "error: device offline\n", err: errors.New("exit status 1")}
+	_, err := FindPackage(context.Background(), f, "S1", "")
+	if code(err) != "adb_failed" || !strings.Contains(err.Error(), "error: device offline") {
+		t.Fatalf("got %q: %v", code(err), err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	f = &fakeRunner{err: errors.New("signal: killed")}
+	_, err = FindPackage(ctx, f, "S1", "")
+	if code(err) != "timeout" {
+		t.Fatalf("got %q: %v", code(err), err)
 	}
 }

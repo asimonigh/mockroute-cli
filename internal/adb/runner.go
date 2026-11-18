@@ -6,6 +6,9 @@ import (
 	"context"
 	"io"
 	"os/exec"
+	"strings"
+
+	"github.com/asimonigh/mockroute-cli/internal/clierr"
 )
 
 // Runner calls adb.
@@ -29,4 +32,16 @@ func (r ExecRunner) Run(ctx context.Context, stdin io.Reader, args ...string) (s
 	cmd.Stderr = &buf
 	err := cmd.Run()
 	return buf.String(), err
+}
+
+// RunError turns a failed Runner call into a typed error: timeout when the
+// context is done, adb_failed otherwise, with the adb output in the message.
+func RunError(ctx context.Context, out string, err error) *clierr.Error {
+	if ctx.Err() != nil {
+		return clierr.New("timeout", "adb call interrupted: %v", ctx.Err())
+	}
+	if msg := strings.TrimSpace(out); msg != "" {
+		return clierr.New("adb_failed", "adb failed: %s (%v)", msg, err)
+	}
+	return clierr.New("adb_failed", "adb failed: %v", err)
 }

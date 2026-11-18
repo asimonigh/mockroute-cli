@@ -22,7 +22,7 @@ func (e *Error) ExitCode() int {
 	switch e.Code {
 	case "usage", "file_not_found":
 		return 1
-	case "adb_not_found", "no_device", "multiple_devices", "device_unauthorized", "device_locked":
+	case "adb_not_found", "no_device", "multiple_devices", "device_unauthorized", "device_locked", "adb_failed":
 		return 2
 	case "app_not_installed", "multiple_packages", "app_outdated", "cli_outdated", "protocol_error", "unknown_method":
 		return 3

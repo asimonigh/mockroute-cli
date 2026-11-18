@@ -22,7 +22,7 @@ var Packages = []string{
 func FindPackage(ctx context.Context, r adb.Runner, serial, explicit string) (string, error) {
 	out, err := r.Run(ctx, nil, "-s", serial, "shell", "pm", "list", "packages", Packages[0])
 	if err != nil {
-		return "", clierr.New("app_not_installed", "cannot list packages on %s: %v", serial, err)
+		return "", adb.RunError(ctx, out, err)
 	}
 	var installed []string
 	for _, line := range strings.Split(out, "\n") {
