@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/asimonigh/mockroute-cli/internal/clierr"
 )
@@ -206,7 +208,7 @@ func TestStart(t *testing.T) {
 	if err := newClient(f).Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"-s", "S1", "shell", "am", "start", "-W", "-n", "com.x/com.simonigh.fakemygpslocation.cli.CliStartActivity"}
+	want := []string{"-s", "S1", "shell", "am", "start", "-n", "com.x/com.simonigh.fakemygpslocation.cli.CliStartActivity"}
 	if !reflect.DeepEqual(f.argv[0], want) {
 		t.Fatalf("got %v", f.argv[0])
 	}
@@ -244,5 +246,22 @@ func TestStartException(t *testing.T) {
 	f := &fakeRunner{out: "Exception occurred while executing 'start':\n"}
 	if code(newClient(f).Start(context.Background())) != "start_failed" {
 		t.Fatal("want start_failed")
+	}
+}
+
+type blockingRunner struct{}
+
+func (blockingRunner) Run(ctx context.Context, _ io.Reader, _ ...string) (string, error) {
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
+func TestStartTimesOut(t *testing.T) {
+	old := startTimeout
+	startTimeout = 10 * time.Millisecond
+	defer func() { startTimeout = old }()
+	c := &Client{Runner: blockingRunner{}, Serial: "S1", Package: testPkg}
+	if got := code(c.Start(context.Background())); got != "timeout" {
+		t.Fatalf("got %q", got)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/asimonigh/mockroute-cli/internal/adb"
 	"github.com/asimonigh/mockroute-cli/internal/clierr"
@@ -203,14 +204,19 @@ func (c *Client) SendGPX(ctx context.Context, path string, sdk int) (string, err
 	return "load", nil
 }
 
+// startTimeout bounds the am start call, which can hang on some Android versions.
+var startTimeout = 15 * time.Second
+
 // Start brings the app up so that it can answer CLI calls.
 func (c *Client) Start(ctx context.Context) error {
-	out, err := c.Runner.Run(ctx, nil, "-s", c.Serial, "shell", "am", "start", "-W", "-n", c.Package+"/"+StartActivity)
+	startCtx, cancel := context.WithTimeout(ctx, startTimeout)
+	defer cancel()
+	out, err := c.Runner.Run(startCtx, nil, "-s", c.Serial, "shell", "am", "start", "-n", c.Package+"/"+StartActivity)
 	if strings.Contains(out, "Error:") || strings.Contains(out, "Exception") {
 		return clierr.New("start_failed", "cannot start MockRoute: %s", strings.TrimSpace(out))
 	}
 	if err != nil {
-		return adb.RunError(ctx, out, err)
+		return adb.RunError(startCtx, out, err)
 	}
 	return nil
 }

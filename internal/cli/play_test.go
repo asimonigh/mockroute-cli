@@ -32,7 +32,7 @@ func playRunner(sdk string, states ...string) *fakeRunner {
 	f.responses["-s S1 push TRACK /sdcard/Android/data/"+pkg+"/files/cli/route.gpx"] = resp{}
 	f.responses[provider("load")] = resp{out: bundle(loadOK)}
 	f.responses[provider("load_pushed")] = resp{out: bundle(loadOK)}
-	f.responses["-s S1 shell am start -W -n "+pkg+"/com.simonigh.fakemygpslocation.cli.CliStartActivity"] = resp{out: "Status: ok\n"}
+	f.responses["-s S1 shell am start -n "+pkg+"/com.simonigh.fakemygpslocation.cli.CliStartActivity"] = resp{out: "Status: ok\n"}
 	return f
 }
 
@@ -72,7 +72,7 @@ func TestPlayHappyPath(t *testing.T) {
 		"-s S1 shell getprop ro.build.version.sdk",
 		"-s S1 shell content write --uri content://" + pkg + ".cli/gpx",
 		provider("load"),
-		"-s S1 shell am start -W -n " + pkg + "/com.simonigh.fakemygpslocation.cli.CliStartActivity",
+		"-s S1 shell am start -n " + pkg + "/com.simonigh.fakemygpslocation.cli.CliStartActivity",
 		provider("status"),
 	}
 	if !reflect.DeepEqual(f.calls, want) {
