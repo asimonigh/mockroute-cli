@@ -37,7 +37,7 @@ var setupSteps = []setupStep{
 }
 
 func runSetupCommand(ctx context.Context, g globalFlags, env Env) result {
-	c, err := connect(ctx, g, env)
+	c, _, err := connect(ctx, g, env)
 	if err != nil {
 		return result{err: err}
 	}

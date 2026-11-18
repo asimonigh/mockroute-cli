@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -160,33 +161,33 @@ func fail(env Env, err error) int {
 }
 
 // connect locates adb, picks the device and the MockRoute variant, and checks the protocol.
-func connect(ctx context.Context, g globalFlags, env Env) (*device.Client, error) {
+// It returns the version the app reported. When only the protocol check fails
+// (cli_outdated, app_outdated), the client and the version come back with the error.
+func connect(ctx context.Context, g globalFlags, env Env) (*device.Client, device.AppVersion, error) {
 	adbPath, err := env.Locator.Find(g.Adb)
 	if err != nil {
-		return nil, err
+		return nil, device.AppVersion{}, err
 	}
 	r := env.NewRunner(adbPath)
 	out, runErr := r.Run(ctx, nil, "devices", "-l")
 	if runErr != nil {
-		return nil, adb.RunError(ctx, out, runErr)
+		return nil, device.AppVersion{}, adb.RunError(ctx, out, runErr)
 	}
 	dev, err := adb.SelectDevice(adb.ParseDevices(out), g.Serial)
 	if err != nil {
-		return nil, err
+		return nil, device.AppVersion{}, err
 	}
 	pkg, err := device.FindPackage(ctx, r, dev.Serial, g.Package)
 	if err != nil {
-		return nil, err
+		return nil, device.AppVersion{}, err
 	}
 	c := &device.Client{Runner: r, Serial: dev.Serial, Package: pkg}
-	if _, err := c.Version(ctx); err != nil {
-		return nil, err
-	}
-	return c, nil
+	v, err := c.Version(ctx)
+	return c, v, err
 }
 
 func passThrough(ctx context.Context, g globalFlags, env Env, method string) result {
-	c, err := connect(ctx, g, env)
+	c, _, err := connect(ctx, g, env)
 	if err != nil {
 		return result{err: err}
 	}
@@ -203,10 +204,11 @@ func passThrough(ctx context.Context, g globalFlags, env Env, method string) res
 
 func versionCommand(ctx context.Context, g globalFlags, env Env) result {
 	out := map[string]any{"cli": env.Version}
-	if c, err := connect(ctx, g, env); err == nil {
-		if v, err := c.Version(ctx); err == nil {
-			out["app"] = v
-		}
+	c, v, err := connect(ctx, g, env)
+	var ce *clierr.Error
+	// A newer app is worth showing: the version command is how a mismatch gets diagnosed.
+	if c != nil && (err == nil || (errors.As(err, &ce) && ce.Code == "cli_outdated")) {
+		out["app"] = v
 	}
 	return result{value: out}
 }

@@ -167,6 +167,42 @@ func TestVersionWithApp(t *testing.T) {
 	}
 }
 
+func TestVersionNewerAppStillShowsApp(t *testing.T) {
+	f := &fakeRunner{responses: baseResponses()}
+	f.responses[provider("version")] = resp{out: bundle(`{"protocol":2,"app_version":"2.0.0","build_type":"release","package":"` + pkg + `"}`)}
+	code, out, _ := run(t, f, "version")
+	m := decode(t, out)
+	app, _ := m["app"].(map[string]any)
+	if code != 0 || app == nil || app["protocol"] != float64(2) {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+}
+
+func TestVersionOutdatedAppOmitsApp(t *testing.T) {
+	f := &fakeRunner{responses: baseResponses()}
+	f.responses[provider("version")] = resp{out: bundle(`{"protocol":0,"app_version":"0.1","build_type":"release","package":"` + pkg + `"}`)}
+	code, out, _ := run(t, f, "version")
+	if code != 0 || out != `{"cli":"1.2.3"}`+"\n" {
+		t.Fatalf("exit %d: %q", code, out)
+	}
+}
+
+func TestVersionCallsAppOnce(t *testing.T) {
+	f := &fakeRunner{responses: baseResponses()}
+	if code, out, _ := run(t, f, "version"); code != 0 {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+	n := 0
+	for _, c := range f.calls {
+		if c == provider("version") {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("version called %d times: %v", n, f.calls)
+	}
+}
+
 func TestUnknownCommand(t *testing.T) {
 	code, out, _ := run(t, &fakeRunner{}, "frobnicate")
 	if code != 1 || errCode(t, out) != "usage" {

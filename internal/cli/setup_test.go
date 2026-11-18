@@ -43,6 +43,15 @@ func TestSetupAllDone(t *testing.T) {
 	if code != 0 || m["ready"] != true {
 		t.Fatalf("exit %d: %s", code, out)
 	}
+	statusReads := 0
+	for _, c := range f.calls {
+		if c == provider("status") {
+			statusReads++
+		}
+	}
+	if statusReads != 1 {
+		t.Fatalf("status read %d times: %v", statusReads, f.calls)
+	}
 	if f.called("pm grant") || f.called("appops") || f.called("deviceidle") {
 		t.Fatalf("unexpected setup call: %v", f.calls)
 	}
@@ -56,8 +65,12 @@ func TestSetupAllDone(t *testing.T) {
 
 func TestSetupAppliesMockApp(t *testing.T) {
 	f, _ := setupResponses(statusJSON(false, "mock_app"), statusJSON(true))
-	f.responses["-s S1 shell appops set "+pkg+" android:mock_location allow"] = resp{}
+	const appops = "-s S1 shell appops set " + pkg + " android:mock_location allow"
+	f.responses[appops] = resp{}
 	code, out, _ := run(t, f, "setup")
+	if !f.called(appops) {
+		t.Fatalf("appops not called: %v", f.calls)
+	}
 	m := decode(t, out)
 	steps := m["steps"].(map[string]any)
 	if code != 0 || steps["mock_app"] != "applied" || steps["location"] != "done" || m["ready"] != true {
