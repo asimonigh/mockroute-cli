@@ -113,8 +113,17 @@ func TestPlayInvalidSpeed(t *testing.T) {
 func TestPlayMissingFile(t *testing.T) {
 	f := playRunner("34")
 	code, out, _ := run(t, f, "play", filepath.Join(t.TempDir(), "nope.gpx"))
-	if code != 1 || errCode(t, out) != "file_not_found" {
-		t.Fatalf("exit %d: %s", code, out)
+	if code != 1 || errCode(t, out) != "file_not_found" || len(f.calls) != 0 {
+		t.Fatalf("exit %d: %s calls %v", code, out, f.calls)
+	}
+}
+
+func TestPlayDirectoryIsNotAFile(t *testing.T) {
+	f := playRunner("34")
+	code, out, _ := run(t, f, "play", t.TempDir())
+	if code != 1 || errCode(t, out) != "file_not_found" || len(f.calls) != 0 ||
+		!strings.Contains(out, "directory") {
+		t.Fatalf("exit %d: %s calls %v", code, out, f.calls)
 	}
 }
 
@@ -129,9 +138,27 @@ func TestPlayProRequired(t *testing.T) {
 
 func TestPlayNeverStarts(t *testing.T) {
 	f := playRunner("34", "idle")
+	f.sequences[provider("status")] = append(f.sequences[provider("status")][:1],
+		resp{out: bundle(failedStatus)})
+	reads := 0
+	f.onCall = func(key string) {
+		if key == provider("status") {
+			reads++
+		}
+	}
 	code, out, _ := runEnv(t, f, fakeClock, "play", gpxFile(t))
 	if code != 7 || errCode(t, out) != "start_failed" {
 		t.Fatalf("exit %d: %s", code, out)
+	}
+	e, _ := decode(t, out)["error"].(map[string]any)
+	last, _ := e["last_status"].(map[string]any)
+	lastErr, _ := last["error"].(map[string]any)
+	if last["state"] != "failed" || lastErr["code"] != "gps_lost" {
+		t.Fatalf("last_status missing: %s", out)
+	}
+	// One setup read, then a read every 500 ms from 0 s to 5 s included.
+	if reads != 1+11 {
+		t.Fatalf("status reads = %d, want 12", reads)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"os"
 	"strconv"
 	"time"
 
@@ -52,6 +53,11 @@ func playCommand(ctx context.Context, g globalFlags, env Env, speedSet bool, arg
 		return result{err: clierr.New("usage", "play needs exactly one GPX file")}
 	}
 	path := args[0]
+	if info, err := os.Stat(path); err != nil {
+		return result{err: clierr.New("file_not_found", "cannot open %s: %v", path, err)}
+	} else if info.IsDir() {
+		return result{err: clierr.New("file_not_found", "%s is a directory, not a GPX file", path)}
+	}
 	speedArg := ""
 	if speedSet {
 		if !(g.Speed >= minSpeedKmh && g.Speed <= maxSpeedKmh) {
@@ -142,7 +148,9 @@ func awaitStart(ctx context.Context, c *device.Client, env Env) (playStatus, jso
 			return st, raw, nil
 		}
 		if !env.Now().Before(deadline) {
-			return st, nil, clierr.New("start_failed", "the simulation did not start within %s (state %q)", startPollLimit, st.State)
+			e := clierr.New("start_failed", "the simulation did not start within %s (state %q)", startPollLimit, st.State)
+			e.Details = map[string]any{"last_status": raw}
+			return st, nil, e
 		}
 		env.Sleep(startPollInterval)
 	}
