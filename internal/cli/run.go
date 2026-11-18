@@ -202,7 +202,7 @@ func passThrough(ctx context.Context, g globalFlags, env Env, method string) res
 	if err != nil {
 		return result{err: err}
 	}
-	raw, err := c.Call(ctx, method, "")
+	raw, err := c.StatusCall(ctx, method)
 	if err != nil {
 		return result{err: err}
 	}

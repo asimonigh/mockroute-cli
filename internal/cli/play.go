@@ -36,7 +36,7 @@ type playStatus struct {
 }
 
 func readStatus(ctx context.Context, c *device.Client) (playStatus, json.RawMessage, error) {
-	raw, err := c.Status(ctx)
+	raw, err := c.StatusCall(ctx, "status")
 	if err != nil {
 		return playStatus{}, nil, err
 	}

@@ -66,10 +66,11 @@ func (c *Client) Call(ctx context.Context, method, arg string) (json.RawMessage,
 	return raw, nil
 }
 
-// Status reads the state of the app. Unlike Call, an "error" object next to a
-// "state" is part of the answer (state failed), not a failed call.
-func (c *Client) Status(ctx context.Context) (json.RawMessage, error) {
-	raw, err := c.call(ctx, "status", "")
+// StatusCall runs a method that answers a status object (status, stop). Unlike
+// Call, an "error" object next to a "state" is part of the answer (state
+// failed), not a failed call.
+func (c *Client) StatusCall(ctx context.Context, method string) (json.RawMessage, error) {
+	raw, err := c.call(ctx, method, "")
 	if err != nil {
 		return nil, err
 	}

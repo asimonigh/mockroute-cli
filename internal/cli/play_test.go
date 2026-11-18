@@ -201,3 +201,41 @@ func TestPlayOldAndroid(t *testing.T) {
 		t.Fatalf("exit %d: %s calls %v", code, out, f.calls)
 	}
 }
+
+const failedStatus = `{"state":"failed","error":{"code":"gps_lost","message":"x"},` + ready + `}`
+
+func TestStatusFailedIsNotAnError(t *testing.T) {
+	f := &fakeRunner{responses: baseResponses()}
+	f.responses[provider("status")] = resp{out: bundle(failedStatus)}
+	code, out, _ := run(t, f, "status")
+	if code != 0 || decode(t, out)["state"] != "failed" {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+}
+
+func TestStopAnsweringFailedIsNotAnError(t *testing.T) {
+	f := &fakeRunner{responses: baseResponses()}
+	f.responses[provider("stop")] = resp{out: bundle(failedStatus)}
+	code, out, _ := run(t, f, "stop")
+	if code != 0 || decode(t, out)["state"] != "failed" {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+}
+
+func TestSetupWithFailedStateSucceeds(t *testing.T) {
+	f := &fakeRunner{responses: baseResponses()}
+	f.responses[provider("status")] = resp{out: bundle(failedStatus)}
+	code, out, _ := run(t, f, "setup")
+	if code != 0 || decode(t, out)["ready"] != true {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+}
+
+func TestPlayProceedsPastStaleFailedState(t *testing.T) {
+	f := playRunner("34", "simulating")
+	f.sequences[provider("status")][0] = resp{out: bundle(failedStatus)}
+	code, out, _ := runEnv(t, f, fakeClock, "play", gpxFile(t))
+	if code != 0 || !f.called("content write") || !f.called("--method load") {
+		t.Fatalf("exit %d: %s calls %v", code, out, f.calls)
+	}
+}
