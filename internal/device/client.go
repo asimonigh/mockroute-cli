@@ -21,6 +21,21 @@ const ProtocolVersion = 1
 // StartActivity is the app activity that brings the app up for CLI calls.
 const StartActivity = "com.simonigh.fakemygpslocation.cli.CliStartActivity"
 
+var providerMissing = []string{"Unknown authority", "Could not find provider", "Unknown URL"}
+
+func providerMissingIn(out string) bool {
+	for _, p := range providerMissing {
+		if strings.Contains(out, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func errAppOutdated() *clierr.Error {
+	return clierr.New("app_outdated", "This MockRoute version has no CLI support. Update MockRoute.")
+}
+
 var resultPattern = regexp.MustCompile(`result=([A-Za-z0-9+/=]+)`)
 
 // Client talks to the CLI content provider of one MockRoute install.
@@ -48,10 +63,8 @@ func (c *Client) Call(ctx context.Context, method, arg string) (json.RawMessage,
 	out, err := c.Runner.Run(ctx, nil, args...)
 	m := resultPattern.FindStringSubmatch(out)
 	if m == nil {
-		for _, p := range []string{"Unknown authority", "Could not find provider", "Unknown URL"} {
-			if strings.Contains(out, p) {
-				return nil, clierr.New("app_outdated", "This MockRoute version has no CLI support. Update MockRoute.")
-			}
+		if providerMissingIn(out) {
+			return nil, errAppOutdated()
 		}
 		if err != nil {
 			return nil, adb.RunError(ctx, out, err)
@@ -133,27 +146,29 @@ func (c *Client) SendGPX(ctx context.Context, path string, sdk int) (string, err
 	}
 	defer file.Close()
 
-	method := "load"
-	var out string
-	if sdk >= 28 {
-		out, err = c.Runner.Run(ctx, file, "-s", c.Serial, "shell", "content", "write", "--uri", "content://"+c.Package+".cli/gpx")
-	} else {
-		method = "load_pushed"
-		out, err = c.Runner.Run(ctx, nil, "-s", c.Serial, "push", path, "/sdcard/Android/data/"+c.Package+"/files/cli/route.gpx")
+	if sdk < 28 {
+		out, err := c.Runner.Run(ctx, nil, "-s", c.Serial, "push", path, "/sdcard/Android/data/"+c.Package+"/files/cli/route.gpx")
+		if err != nil {
+			return "", adb.RunError(ctx, out, err)
+		}
+		return "load_pushed", nil
 	}
-	if strings.Contains(out, "Exception") || strings.Contains(out, "Error") {
+	out, err := c.Runner.Run(ctx, file, "-s", c.Serial, "shell", "content", "write", "--uri", "content://"+c.Package+".cli/gpx")
+	switch {
+	case providerMissingIn(out):
+		return "", errAppOutdated()
+	case strings.Contains(out, "Exception") || strings.Contains(out, "Error"):
 		return "", clierr.New("protocol_error", "sending the GPX failed: %s", strings.TrimSpace(out))
-	}
-	if err != nil {
+	case err != nil:
 		return "", adb.RunError(ctx, out, err)
 	}
-	return method, nil
+	return "load", nil
 }
 
 // Start brings the app up so that it can answer CLI calls.
 func (c *Client) Start(ctx context.Context) error {
 	out, err := c.Runner.Run(ctx, nil, "-s", c.Serial, "shell", "am", "start", "-W", "-n", c.Package+"/"+StartActivity)
-	if strings.Contains(out, "Error:") {
+	if strings.Contains(out, "Error:") || strings.Contains(out, "Exception") {
 		return clierr.New("start_failed", "cannot start MockRoute: %s", strings.TrimSpace(out))
 	}
 	if err != nil {

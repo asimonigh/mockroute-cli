@@ -219,3 +219,30 @@ func TestStart(t *testing.T) {
 		t.Fatal("want adb_failed")
 	}
 }
+
+func TestSendGPXPushIgnoresPathWords(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ErrorLog.gpx")
+	if err := os.WriteFile(path, []byte("<gpx/>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := &fakeRunner{out: path + ": 1 file pushed. 0.1 MB/s\n"}
+	method, err := newClient(f).SendGPX(context.Background(), path, 27)
+	if err != nil || method != "load_pushed" {
+		t.Fatalf("got %q %v", method, err)
+	}
+}
+
+func TestSendGPXContentWriteProviderMissing(t *testing.T) {
+	path, _ := writeGPX(t)
+	f := &fakeRunner{out: "Error while accessing provider:com.x.cli\nUnknown authority com.x.cli\n"}
+	if _, err := newClient(f).SendGPX(context.Background(), path, 30); code(err) != "app_outdated" {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestStartException(t *testing.T) {
+	f := &fakeRunner{out: "Exception occurred while executing 'start':\n"}
+	if code(newClient(f).Start(context.Background())) != "start_failed" {
+		t.Fatal("want start_failed")
+	}
+}
