@@ -27,7 +27,12 @@ type Env struct {
 	Version        string
 }
 
-type globalFlags struct{ Serial, Package, Adb string }
+type globalFlags struct {
+	Serial, Package, Adb string
+	Speed                float64
+	Timeout              time.Duration
+	Wait                 bool
+}
 
 const usage = `Usage: mockroute [--serial S] [--package P] [--adb PATH] <command>
 
@@ -35,6 +40,7 @@ Commands:
   setup     grant the permissions MockRoute needs and report what is missing
   status    print the state of MockRoute
   stop      stop the running simulation
+  play      play <file.gpx> [--speed km/h] [--wait] [--timeout duration]
   version   print the CLI and app versions
 `
 
@@ -46,6 +52,9 @@ func newFlagSet(g *globalFlags) *flag.FlagSet {
 	fs.StringVar(&g.Serial, "serial", "", "")
 	fs.StringVar(&g.Package, "package", "", "")
 	fs.StringVar(&g.Adb, "adb", "", "")
+	fs.Float64Var(&g.Speed, "speed", 0, "")
+	fs.DurationVar(&g.Timeout, "timeout", 0, "")
+	fs.BoolVar(&g.Wait, "wait", false, "")
 	return fs
 }
 
@@ -114,6 +123,8 @@ func Run(args []string, env Env) int {
 		return finish(env, runSetupCommand(ctx, g, env))
 	case "status", "stop":
 		return finish(env, passThrough(ctx, g, env, cmd))
+	case "play":
+		return finish(env, playCommand(ctx, g, env, speedGiven(fs), fs.Args()[1:]))
 	case "version":
 		return finish(env, versionCommand(ctx, g, env))
 	default:

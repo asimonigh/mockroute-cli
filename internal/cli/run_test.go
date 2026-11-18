@@ -32,6 +32,8 @@ type fakeRunner struct {
 	responses map[string]resp
 	calls     []string
 	onCall    func(key string) // optional hook run after each call is recorded
+	// sequences scripts successive answers of one key; the last answer repeats.
+	sequences map[string][]resp
 }
 
 func (f *fakeRunner) Run(_ context.Context, _ io.Reader, args ...string) (string, error) {
@@ -42,6 +44,13 @@ func (f *fakeRunner) Run(_ context.Context, _ io.Reader, args ...string) (string
 			f.onCall(key)
 		}
 	}()
+	if seq := f.sequences[key]; len(seq) > 0 {
+		r := seq[0]
+		if len(seq) > 1 {
+			f.sequences[key] = seq[1:]
+		}
+		return r.out, r.err
+	}
 	if r, ok := f.responses[key]; ok {
 		return r.out, r.err
 	}
@@ -78,6 +87,12 @@ func baseResponses() map[string]resp {
 
 func run(t *testing.T, f *fakeRunner, args ...string) (int, string, string) {
 	t.Helper()
+	return runEnv(t, f, nil, args...)
+}
+
+// runEnv is run with a hook to adjust the Env (fake clock, for instance).
+func runEnv(t *testing.T, f *fakeRunner, tweak func(*Env), args ...string) (int, string, string) {
+	t.Helper()
 	var stdout, stderr bytes.Buffer
 	env := Env{
 		Stdout: &stdout, Stderr: &stderr,
@@ -91,6 +106,9 @@ func run(t *testing.T, f *fakeRunner, args ...string) (int, string, string) {
 		Sleep:     func(time.Duration) {},
 		Now:       time.Now,
 		Version:   "1.2.3",
+	}
+	if tweak != nil {
+		tweak(&env)
 	}
 	code := Run(args, env)
 	return code, stdout.String(), stderr.String()

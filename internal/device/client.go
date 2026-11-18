@@ -56,6 +56,37 @@ type AppVersion struct {
 // Call invokes a provider method and returns the decoded JSON result.
 // An error answer of the app becomes a *clierr.Error with the app's code.
 func (c *Client) Call(ctx context.Context, method, arg string) (json.RawMessage, error) {
+	raw, err := c.call(ctx, method, arg)
+	if err != nil {
+		return nil, err
+	}
+	if ce := appError(raw); ce != nil {
+		return nil, ce
+	}
+	return raw, nil
+}
+
+// Status reads the state of the app. Unlike Call, an "error" object next to a
+// "state" is part of the answer (state failed), not a failed call.
+func (c *Client) Status(ctx context.Context) (json.RawMessage, error) {
+	raw, err := c.call(ctx, "status", "")
+	if err != nil {
+		return nil, err
+	}
+	var probe struct {
+		State string `json:"state"`
+	}
+	if json.Unmarshal(raw, &probe) == nil && probe.State != "" {
+		return raw, nil
+	}
+	if ce := appError(raw); ce != nil {
+		return nil, ce
+	}
+	return raw, nil
+}
+
+// call runs the provider method and decodes the base64 JSON result.
+func (c *Client) call(ctx context.Context, method, arg string) (json.RawMessage, error) {
 	args := []string{"-s", c.Serial, "shell", "content", "call", "--uri", "content://" + c.Package + ".cli", "--method", method}
 	if arg != "" {
 		args = append(args, "--arg", arg)
@@ -75,6 +106,14 @@ func (c *Client) Call(ctx context.Context, method, arg string) (json.RawMessage,
 	if decErr != nil {
 		return nil, clierr.New("protocol_error", "invalid base64 in the app answer: %v", decErr)
 	}
+	if !json.Valid(raw) {
+		return nil, clierr.New("protocol_error", "invalid JSON in the app answer: %s", strings.TrimSpace(string(raw)))
+	}
+	return raw, nil
+}
+
+// appError turns an {"error":{...}} answer of the app into a *clierr.Error.
+func appError(raw json.RawMessage) *clierr.Error {
 	var probe struct {
 		Error *struct {
 			Code    string `json:"code"`
@@ -83,23 +122,21 @@ func (c *Client) Call(ctx context.Context, method, arg string) (json.RawMessage,
 			Missing []any  `json:"missing"`
 		} `json:"error"`
 	}
-	if jsonErr := json.Unmarshal(raw, &probe); jsonErr != nil {
-		return nil, clierr.New("protocol_error", "invalid JSON in the app answer: %v", jsonErr)
+	if json.Unmarshal(raw, &probe) != nil || probe.Error == nil {
+		return nil
 	}
-	if e := probe.Error; e != nil {
-		ce := clierr.New(e.Code, "%s", e.Message)
-		if e.Target != "" || e.Missing != nil {
-			ce.Details = map[string]any{}
-			if e.Target != "" {
-				ce.Details["target"] = e.Target
-			}
-			if e.Missing != nil {
-				ce.Details["missing"] = e.Missing
-			}
+	e := probe.Error
+	ce := clierr.New(e.Code, "%s", e.Message)
+	if e.Target != "" || e.Missing != nil {
+		ce.Details = map[string]any{}
+		if e.Target != "" {
+			ce.Details["target"] = e.Target
 		}
-		return nil, ce
+		if e.Missing != nil {
+			ce.Details["missing"] = e.Missing
+		}
 	}
-	return raw, nil
+	return ce
 }
 
 // Version asks the app for its version and checks the protocol is compatible.
