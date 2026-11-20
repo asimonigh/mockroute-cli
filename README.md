@@ -5,7 +5,7 @@
 ## Requirements
 
 - `adb` on the machine (Android platform-tools), with USB debugging enabled and authorized on the phone. The CLI looks for `adb` on the `PATH`, then in `ANDROID_HOME`, `ANDROID_SDK_ROOT` and the default SDK location of the OS. `--adb` overrides it.
-- MockRoute Pro, or the `internal` build of the app, installed on the phone. `play` needs Pro; `setup`, `status`, `stop` and `version` work without it.
+- MockRoute Pro, or the `internal` build of the app, installed on the phone. `play` and `point` need Pro; `setup`, `status`, `stop` and `version` work without it.
 - Android 7 or later.
 - The phone unlocked with the screen on while a simulation starts.
 
@@ -48,6 +48,7 @@ mockroute [--serial S] [--package P] [--adb PATH] <command>
 |---|---|
 | `setup` | Grants what `adb` can grant (location, notifications, mock location app, battery) and reports every step. |
 | `play <file.gpx> [--speed km/h] [--wait] [--timeout duration]` | Runs `setup`, loads the GPX file and starts the simulation. |
+| `point <lat> <lon> [--accuracy m]` | Runs `setup`, then holds a fixed position (state `static`). Also accepts `<lat>,<lon>`. |
 | `status` | Prints the state of MockRoute. |
 | `stop` | Stops the running simulation, and a fixed-position mock started from the app. |
 | `version` | Prints `{"cli": "...", "app": {...}}`. `app` is absent when no device or no MockRoute app answers. |
@@ -69,6 +70,18 @@ Global options:
 | `--timeout duration` | With `--wait`, give up after this long, for example `30m`. The simulation keeps running. No limit by default. |
 
 `play` runs `setup` first, then replaces any simulation already running. A `play` that does not start the simulation within a few seconds (nothing staged, phone locked) reports `start_failed` with the last `status` in `last_status`; an `arrived` route left from a previous `play` is not mistaken for the new start.
+
+### `point`
+
+`point` runs `setup`, then makes the phone report one fixed position until `stop`. It needs MockRoute Pro, like `play`. The answer is the `status` object, with `state` `static`.
+
+```sh
+mockroute point 43.6045 1.444
+mockroute point 43.6045,-1.444 --accuracy 25
+mockroute point 43,6045 1,444          # a comma works as the decimal separator
+```
+
+The coordinates are `lat lon`, `lat,lon` or `lat;lon`, latitude within ±90 and longitude within ±180. A negative number needs no `--`. `--accuracy m` sets the reported accuracy in meters, above 0 and at most 10000; without it the app uses 4 m. When a fixed point is already running, `point` moves it without restarting anything. A `point` that does not reach `static` within a few seconds reports `start_failed` with the last `status` in `last_status`. An app without this command answers `app_outdated`.
 
 ### `setup`
 
@@ -122,7 +135,7 @@ On failure, the CLI prints `{"error": {"code": "...", "message": "..."}}` on std
 | 3 | App or protocol problem | `app_not_installed`, `multiple_packages`, `app_outdated`, `cli_outdated`, `protocol_error`, `unknown_method`; any other code, such as `app_not_ready` or an internal error |
 | 4 | Pro required | `pro_required` |
 | 5 | Setup not done | `setup_incomplete`, `setup_failed` |
-| 6 | Invalid input | `invalid_gpx`, `invalid_speed` |
+| 6 | Invalid input | `invalid_gpx`, `invalid_speed`, `invalid_coordinates`, `invalid_accuracy` |
 | 7 | Simulation problem | `start_failed`, `mock_failed`, `stopped` |
 | 8 | Timeout | `timeout` |
 
@@ -145,7 +158,7 @@ Keep the phone unlocked with the screen on: a locked phone can make the start fa
 
 ## Security model
 
-The app exposes its CLI provider to the `adb` shell only: it refuses every other caller, including other apps on the phone. The activity that starts a simulation only acts on a request that the provider prepared just before, so it does nothing when opened any other way. `play` needs MockRoute Pro (or the `internal` build); without it the answer is `pro_required` and no paywall opens. `status`, `stop` and `version` work without Pro.
+The app exposes its CLI provider to the `adb` shell only: it refuses every other caller, including other apps on the phone. The activity that starts a simulation only acts on a request that the provider prepared just before, so it does nothing when opened any other way. `play` and `point` need MockRoute Pro (or the `internal` build); without it the answer is `pro_required` and no paywall opens. `status`, `stop` and `version` work without Pro.
 
 ## License
 

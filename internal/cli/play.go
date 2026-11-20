@@ -101,7 +101,7 @@ func playCommand(ctx context.Context, g globalFlags, env Env, speedSet bool, arg
 		return result{err: err}
 	}
 
-	st, raw, err := awaitStart(ctx, c, env, before)
+	st, raw, err := awaitStart(ctx, c, env, before, "simulating", "paused", "arrived")
 	if err != nil {
 		return result{err: err}
 	}
@@ -146,20 +146,25 @@ func playCommand(ctx context.Context, g globalFlags, env Env, speedSet bool, arg
 	return result{value: fields}
 }
 
-func isActive(state string) bool {
-	return state == "simulating" || state == "paused" || state == "arrived"
+func isAccepted(state string, accepted []string) bool {
+	for _, a := range accepted {
+		if state == a {
+			return true
+		}
+	}
+	return false
 }
 
-// awaitStart polls status until the simulation runs, for at most startPollLimit. When [before] was already
-// active, only a different started_at proves that this play started.
-func awaitStart(ctx context.Context, c *device.Client, env Env, before playStatus) (playStatus, json.RawMessage, error) {
+// awaitStart polls status until the state is one of [accepted], for at most startPollLimit. When [before] was
+// already in an accepted state, only a different started_at proves that this start happened.
+func awaitStart(ctx context.Context, c *device.Client, env Env, before playStatus, accepted ...string) (playStatus, json.RawMessage, error) {
 	deadline := env.Now().Add(startPollLimit)
 	for {
 		st, raw, err := readStatus(ctx, c)
 		if err != nil {
 			return st, nil, err
 		}
-		if isActive(st.State) && (!isActive(before.State) || st.StartedAt != before.StartedAt) {
+		if isAccepted(st.State, accepted) && (!isAccepted(before.State, accepted) || st.StartedAt != before.StartedAt) {
 			return st, raw, nil
 		}
 		if !env.Now().Before(deadline) {

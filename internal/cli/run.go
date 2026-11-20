@@ -42,6 +42,7 @@ Commands:
   status    print the state of MockRoute
   stop      stop the running simulation
   play      play <file.gpx> [--speed km/h] [--wait] [--timeout duration]
+  point     point <lat> <lon> [--accuracy m]: hold a fixed position
   version   print the CLI and app versions
 `
 
@@ -133,6 +134,8 @@ func Run(args []string, env Env) int {
 		return finish(env, passThrough(ctx, g, env, cmd))
 	case "play":
 		return finish(env, playCommand(ctx, g, env, speedGiven(fs), fs.Args()[1:]))
+	case "point":
+		return finish(env, pointCommand(ctx, g, env, accuracyGiven(fs), fs.Args()[1:]))
 	case "version":
 		return finish(env, versionCommand(ctx, g, env))
 	default:
