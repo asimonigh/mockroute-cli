@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,7 +30,7 @@ type Env struct {
 
 type globalFlags struct {
 	Serial, Package, Adb string
-	Speed                float64
+	Speed, Accuracy      float64
 	Timeout              time.Duration
 	Wait                 bool
 }
@@ -53,6 +54,7 @@ func newFlagSet(g *globalFlags) *flag.FlagSet {
 	fs.StringVar(&g.Package, "package", "", "")
 	fs.StringVar(&g.Adb, "adb", "", "")
 	fs.Float64Var(&g.Speed, "speed", 0, "")
+	fs.Float64Var(&g.Accuracy, "accuracy", 0, "")
 	fs.DurationVar(&g.Timeout, "timeout", 0, "")
 	fs.BoolVar(&g.Wait, "wait", false, "")
 	return fs
@@ -69,7 +71,7 @@ func reorder(fs *flag.FlagSet, args []string) ([]string, error) {
 			positional = append(positional, args[i+1:]...)
 			break
 		}
-		if !strings.HasPrefix(a, "-") || a == "-" {
+		if !strings.HasPrefix(a, "-") || a == "-" || isNumber(a) {
 			positional = append(positional, a)
 			continue
 		}
@@ -91,6 +93,12 @@ func reorder(fs *flag.FlagSet, args []string) ([]string, error) {
 		opts = append(opts, args[i])
 	}
 	return append(opts, positional...), nil
+}
+
+// isNumber reports whether a token that starts with "-" reads as a number, such as -33.86.
+func isNumber(a string) bool {
+	_, err := strconv.ParseFloat(a, 64)
+	return err == nil
 }
 
 // Run executes the CLI and returns the process exit code.

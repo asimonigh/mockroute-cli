@@ -9,7 +9,7 @@ func TestExitCodes(t *testing.T) {
 		3: {"app_not_installed", "multiple_packages", "app_outdated", "cli_outdated", "protocol_error", "unknown_method", "something_unknown"},
 		4: {"pro_required"},
 		5: {"setup_incomplete", "setup_failed"},
-		6: {"invalid_gpx", "invalid_speed"},
+		6: {"invalid_gpx", "invalid_speed", "invalid_coordinates", "invalid_accuracy"},
 		7: {"start_failed", "mock_failed", "stopped"},
 		8: {"timeout"},
 	}
