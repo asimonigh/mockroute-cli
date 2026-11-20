@@ -18,6 +18,8 @@ func TestParseCoordinates(t *testing.T) {
 		{[]string{"43,6045;1,444"}, 43.6045, 1.444},
 		{[]string{"-33.86", "151.2"}, -33.86, 151.2},
 		{[]string{"43.6045,-1.444"}, 43.6045, -1.444},
+		{[]string{"90,180"}, 90, 180},
+		{[]string{"-90,-180"}, -90, -180},
 	}
 	for _, c := range ok {
 		lat, lon, err := ParseCoordinates(c.args)
@@ -25,7 +27,7 @@ func TestParseCoordinates(t *testing.T) {
 			t.Errorf("%v: got %v %v %v, want %v %v", c.args, lat, lon, err, c.lat, c.lon)
 		}
 	}
-	bad := [][]string{{"91", "0"}, {"0", "181"}, {"abc"}, {}, {"1", "2", "3"}}
+	bad := [][]string{{"91", "0"}, {"0", "181"}, {"abc"}, {}, {"1", "2", "3"}, {"90.0001,0"}}
 	for _, args := range bad {
 		_, _, err := ParseCoordinates(args)
 		var ce *clierr.Error

@@ -308,6 +308,11 @@ func TestReorderNegativeNumbers(t *testing.T) {
 		{[]string{"point", "43.6", "-1.444"}, []string{"point", "43.6", "-1.444"}},
 		{[]string{"point", "43.6", "-1.444", "--speed", "-5"}, []string{"--speed", "-5", "point", "43.6", "-1.444"}},
 		{[]string{"point", "--accuracy", "25", "-33.86", "151.2"}, []string{"--accuracy", "25", "point", "-33.86", "151.2"}},
+		{[]string{"point", "-33.86,151.2"}, []string{"point", "-33.86,151.2"}},
+		{[]string{"point", "-33.86;151.2"}, []string{"point", "-33.86;151.2"}},
+		{[]string{"point", "-33,86", "151,2"}, []string{"point", "-33,86", "151,2"}},
+		{[]string{"point", "43,6045", "-1,444"}, []string{"point", "43,6045", "-1,444"}},
+		{[]string{"point", "-.5,2"}, []string{"point", "-.5,2"}},
 	}
 	for _, c := range cases {
 		got, err := reorder(newFlagSet(&globalFlags{}), c.args)

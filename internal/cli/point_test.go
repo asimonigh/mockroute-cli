@@ -115,3 +115,61 @@ func TestPointNegativeLongitude(t *testing.T) {
 		t.Fatalf("calls: %v", f.calls)
 	}
 }
+
+func TestPointNegativeForms(t *testing.T) {
+	cases := []struct {
+		args []string
+		arg  string
+	}{
+		{[]string{"-33.86,151.2"}, "-33.86,151.2"},
+		{[]string{"-33.86;151.2"}, "-33.86,151.2"},
+		{[]string{"-33,86", "151,2"}, "-33.86,151.2"},
+		{[]string{"43,6045", "-1,444"}, "43.6045,-1.444"},
+	}
+	for _, c := range cases {
+		f := pointRunner(c.arg, "static")
+		code, out, _ := runEnv(t, f, fakeClock, append([]string{"point"}, c.args...)...)
+		if code != 0 || !f.called("--method point --arg "+c.arg) {
+			t.Fatalf("%v: exit %d %s calls %v", c.args, code, out, f.calls)
+		}
+	}
+}
+
+func statusReads(f *fakeRunner) int {
+	n := 0
+	for _, c := range f.calls {
+		if c == provider("status") {
+			n++
+		}
+	}
+	return n
+}
+
+func TestPointWaitsTwelveSeconds(t *testing.T) {
+	f := pointRunner("43.6045,1.444", "idle")
+	code, out, _ := runEnv(t, f, fakeClock, "point", "43.6045", "1.444")
+	if code != 7 || errCode(t, out) != "start_failed" {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+	// Two reads before the start, then one every 500 ms from 0 s to 12 s.
+	if n := statusReads(f); n != 27 {
+		t.Fatalf("status reads: %d", n)
+	}
+	if !strings.Contains(out, "within 12s") || strings.Contains(out, "simulation") {
+		t.Fatalf("message: %s", out)
+	}
+}
+
+func TestPointMoveAnswerNotStatic(t *testing.T) {
+	f := pointRunner("43.6045,1.444")
+	f.responses[provider("point")+" --arg 43.6045,1.444"] = resp{out: bundle(`{"state":"idle"}`)}
+	code, out, _ := runEnv(t, f, fakeClock, "point", "43.6045", "1.444")
+	if code != 7 || errCode(t, out) != "start_failed" {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+	e, _ := decode(t, out)["error"].(map[string]any)
+	last, _ := e["last_status"].(map[string]any)
+	if last["state"] != "idle" {
+		t.Fatalf("last_status missing: %s", out)
+	}
+}

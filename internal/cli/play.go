@@ -15,6 +15,7 @@ import (
 const (
 	startPollInterval = 500 * time.Millisecond
 	startPollLimit    = 5 * time.Second
+	pointPollLimit    = 12 * time.Second // a point started after a route makes up to three 3 s fused calls
 	waitPollInterval  = 2 * time.Second
 	minSpeedKmh       = 1
 	maxSpeedKmh       = 300
@@ -101,7 +102,7 @@ func playCommand(ctx context.Context, g globalFlags, env Env, speedSet bool, arg
 		return result{err: err}
 	}
 
-	st, raw, err := awaitStart(ctx, c, env, before, "simulating", "paused", "arrived")
+	st, raw, err := awaitStart(ctx, c, env, before, startPollLimit, "simulating", "paused", "arrived")
 	if err != nil {
 		return result{err: err}
 	}
@@ -155,10 +156,10 @@ func isAccepted(state string, accepted []string) bool {
 	return false
 }
 
-// awaitStart polls status until the state is one of [accepted], for at most startPollLimit. When [before] was
+// awaitStart polls status until the state is one of [accepted], for at most [limit]. When [before] was
 // already in an accepted state, only a different started_at proves that this start happened.
-func awaitStart(ctx context.Context, c *device.Client, env Env, before playStatus, accepted ...string) (playStatus, json.RawMessage, error) {
-	deadline := env.Now().Add(startPollLimit)
+func awaitStart(ctx context.Context, c *device.Client, env Env, before playStatus, limit time.Duration, accepted ...string) (playStatus, json.RawMessage, error) {
+	deadline := env.Now().Add(limit)
 	for {
 		st, raw, err := readStatus(ctx, c)
 		if err != nil {
@@ -168,7 +169,7 @@ func awaitStart(ctx context.Context, c *device.Client, env Env, before playStatu
 			return st, raw, nil
 		}
 		if !env.Now().Before(deadline) {
-			e := clierr.New("start_failed", "the simulation did not start within %s (state %q)", startPollLimit, st.State)
+			e := clierr.New("start_failed", "MockRoute did not start within %s (state %q)", limit, st.State)
 			e.Details = map[string]any{"last_status": raw}
 			return st, nil, e
 		}

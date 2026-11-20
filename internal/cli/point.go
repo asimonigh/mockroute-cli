@@ -49,6 +49,11 @@ func pointCommand(ctx context.Context, g globalFlags, env Env, accuracySet bool,
 	}
 	if json.Unmarshal(answer, &probe) == nil && probe.State != "" {
 		// A fixed point was already running and has been moved.
+		if probe.State != "static" {
+			e := clierr.New("start_failed", "MockRoute did not hold the fixed point (state %q)", probe.State)
+			e.Details = map[string]any{"last_status": json.RawMessage(answer)}
+			return result{err: e}
+		}
 		var v any
 		if err := json.Unmarshal(answer, &v); err != nil {
 			return result{err: clierr.New("protocol_error", "invalid point answer: %v", err)}
@@ -62,7 +67,7 @@ func pointCommand(ctx context.Context, g globalFlags, env Env, accuracySet bool,
 	if err := c.Start(ctx); err != nil {
 		return result{err: err}
 	}
-	_, raw, err := awaitStart(ctx, c, env, before, "static")
+	_, raw, err := awaitStart(ctx, c, env, before, pointPollLimit, "static")
 	if err != nil {
 		return result{err: err}
 	}

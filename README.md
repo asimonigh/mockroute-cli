@@ -1,6 +1,6 @@
 # mockroute
 
-`mockroute` drives the MockRoute Android app from a computer, over `adb`. It plays a GPX file as a simulated GPS route on a connected phone, reports the state of the simulation and stops it. Every command prints one line of JSON on stdout (except `--help` and a bare `mockroute`, which print usage on stderr) and exits with a code that tells what went wrong, so scripts and AI agents can drive it.
+`mockroute` drives the MockRoute Android app from a computer, over `adb`. It plays a GPX file as a simulated GPS route on a connected phone, or holds a fixed position, reports the state of MockRoute and stops it. Every command prints one line of JSON on stdout (except `--help` and a bare `mockroute`, which print usage on stderr) and exits with a code that tells what went wrong, so scripts and AI agents can drive it.
 
 ## Requirements
 
@@ -50,7 +50,7 @@ mockroute [--serial S] [--package P] [--adb PATH] <command>
 | `play <file.gpx> [--speed km/h] [--wait] [--timeout duration]` | Runs `setup`, loads the GPX file and starts the simulation. |
 | `point <lat> <lon> [--accuracy m]` | Runs `setup`, then holds a fixed position (state `static`). Also accepts `<lat>,<lon>`. |
 | `status` | Prints the state of MockRoute. |
-| `stop` | Stops the running simulation, and a fixed-position mock started from the app. |
+| `stop` | Stops the running route or fixed point, whether it was started from the app or from the CLI. |
 | `version` | Prints `{"cli": "...", "app": {...}}`. `app` is absent when no device or no MockRoute app answers. |
 
 Global options:
@@ -81,7 +81,7 @@ mockroute point 43.6045,-1.444 --accuracy 25
 mockroute point 43,6045 1,444          # a comma works as the decimal separator
 ```
 
-The coordinates are `lat lon`, `lat,lon` or `lat;lon`, latitude within ±90 and longitude within ±180. A negative number needs no `--`. `--accuracy m` sets the reported accuracy in meters, above 0 and at most 10000; without it the app uses 4 m. When a fixed point is already running, `point` moves it without restarting anything. A `point` that does not reach `static` within a few seconds reports `start_failed` with the last `status` in `last_status`. An app without this command answers `app_outdated`.
+The coordinates are `lat lon`, `lat,lon` or `lat;lon`, latitude within ±90 and longitude within ±180. A negative number needs no `--`. `--accuracy m` sets the reported accuracy in meters, above 0 and at most 10000; without it the app uses 4 m. When a fixed point is already running, `point` moves it without restarting anything. A `point` that does not reach `static` within 12 seconds (a point started after a route can take several seconds) reports `start_failed` with the last `status` in `last_status`. An app without this command answers `app_outdated`.
 
 ### `setup`
 

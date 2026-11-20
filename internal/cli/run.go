@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"time"
 
@@ -72,7 +71,7 @@ func reorder(fs *flag.FlagSet, args []string) ([]string, error) {
 			positional = append(positional, args[i+1:]...)
 			break
 		}
-		if !strings.HasPrefix(a, "-") || a == "-" || isNumber(a) {
+		if !strings.HasPrefix(a, "-") || a == "-" || startsNumber(a) {
 			positional = append(positional, a)
 			continue
 		}
@@ -96,10 +95,10 @@ func reorder(fs *flag.FlagSet, args []string) ([]string, error) {
 	return append(opts, positional...), nil
 }
 
-// isNumber reports whether a token that starts with "-" reads as a number, such as -33.86.
-func isNumber(a string) bool {
-	_, err := strconv.ParseFloat(a, 64)
-	return err == nil
+// startsNumber reports whether a token that starts with "-" reads as a number, such as -33.86,
+// -33,86 or -33.86;151.2: "-" followed by a digit or a dot. No option name starts with one.
+func startsNumber(a string) bool {
+	return len(a) > 1 && (a[1] >= '0' && a[1] <= '9' || a[1] == '.')
 }
 
 // Run executes the CLI and returns the process exit code.
