@@ -14,8 +14,8 @@ const (
 	idEte1  = "33333333-3333-3333-3333-333333333333"
 	idEte2  = "44444444-4444-4444-4444-444444444444"
 	routesJ = `{"routes":[` +
-		`{"id":"` + idCol + `","name":"Col du Tourmalet","distance_m":1000,"duration_s":60,"mode":"ROAD","recorded_times":false},` +
-		`{"id":"` + idAlpes + `","name":"Alpes","distance_m":2000,"duration_s":120,"mode":"ROAD","recorded_times":true}]}`
+		`{"id":"` + idCol + `","name":"Col du Tourmalet","distance_m":1000,"duration_s":60,"mode":"road","recorded_times":false},` +
+		`{"id":"` + idAlpes + `","name":"Alpes","distance_m":2000,"duration_s":120,"mode":"imported","recorded_times":true}]}`
 )
 
 func TestResolveRoute(t *testing.T) {

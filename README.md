@@ -96,11 +96,11 @@ The coordinates are `lat lon`, `lat,lon` or `lat;lon`, latitude within ±90 and 
 {"routes": [{"id": "6f1c...", "name": "Tour des quais", "distance_m": 12840.0, "duration_s": 925, "mode": "road", "recorded_times": false}]}
 ```
 
-`mode` is `straight_line`, `road` or `imported`. `recorded_times` is true when the route has a time for every point.
+`mode` is `straight_line`, `road` or `imported`. `recorded_times` is true for an imported GPX file that was saved to be replayed on its own times.
 
 `play --route <name|id>` takes an id or a name. An identical id wins, then a name matches ignoring case. When several routes share the name, it fails with `ambiguous_route` and lists their `ids`: pass one of them to `--route`. No match gives `route_not_found`. `--route` cannot be combined with a GPX file, and `--speed`, `--wait` and `--timeout` work as for a GPX file.
 
-The pace is `--speed` when given, otherwise the recorded times when `recorded_times` is true and every point has a time, otherwise 50 km/h. The answer's `pace_source` says which one applied. The map shows the name of the route. Only the id is sent to the phone.
+The pace is `--speed` when given, otherwise the recorded times when `recorded_times` is true and every point of the file has a valid time, otherwise 50 km/h. The answer's `pace_source` says which one applied. The map shows the name of the route. Only the id is sent to the phone.
 
 ### Speed, pause and resume
 

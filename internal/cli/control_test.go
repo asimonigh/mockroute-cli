@@ -22,13 +22,13 @@ func TestSpeedSendsArg(t *testing.T) {
 	if code != 0 || decode(t, out)["state"] != "paused" || !f.called(provider("speed")+" --arg 42.5") {
 		t.Fatalf("exit %d: %s calls %v", code, out, f.calls)
 	}
-	if f.called("-s S1 shell content call --uri content://"+pkg+".cli --method status") || f.called("am start") {
+	if f.called("-s S1 shell pm grant") || f.called("am start") {
 		t.Fatalf("unexpected calls: %v", f.calls)
 	}
 }
 
 func TestSpeedInvalid(t *testing.T) {
-	for _, s := range []string{"0", "301", "abc", "-5", "0.5"} {
+	for _, s := range []string{"0", "301", "abc", "-5", "0.5", "NaN", "Inf", "300.0001"} {
 		f := playRunner("34")
 		code, out, _ := run(t, f, "speed", s)
 		if code != 6 || errCode(t, out) != "invalid_speed" || len(f.calls) != 0 {
@@ -68,9 +68,9 @@ func TestSpeedProRequiredAndInvalid(t *testing.T) {
 
 func TestPauseResume(t *testing.T) {
 	for _, m := range []string{"pause", "resume"} {
-		f := controlRunner(m, pausedJSON)
+		f := controlRunner(m, `{"state":"simulating",`+ready+`}`)
 		code, out, _ := run(t, f, m)
-		if code != 0 || decode(t, out)["state"] != "paused" || !f.called(provider(m)) || f.called(provider(m)+" --arg") {
+		if code != 0 || decode(t, out)["state"] != "simulating" || !f.called(provider(m)) || f.called(provider(m)+" --arg") {
 			t.Fatalf("%s: exit %d: %s calls %v", m, code, out, f.calls)
 		}
 		if f.called("-s S1 shell pm grant") {
@@ -106,5 +106,25 @@ func TestControlOldApp(t *testing.T) {
 		if code != 3 || errCode(t, out) != "app_outdated" || !strings.Contains(out, "cannot "+c.what+" from the CLI") {
 			t.Fatalf("%v: exit %d: %s", c.args, code, out)
 		}
+	}
+}
+
+func TestSpeedBoundsAndFormat(t *testing.T) {
+	for _, c := range []struct{ in, arg string }{{"1", "1"}, {"300", "300"}, {"1e2", "100"}} {
+		f := controlRunner("speed", pausedJSON)
+		f.responses[provider("speed")+" --arg "+c.arg] = resp{out: bundle(pausedJSON)}
+		code, out, _ := run(t, f, "speed", c.in)
+		if code != 0 || !f.called(provider("speed")+" --arg "+c.arg) {
+			t.Fatalf("%s: exit %d: %s calls %v", c.in, code, out, f.calls)
+		}
+	}
+}
+
+func TestControlPassesFailedStateThrough(t *testing.T) {
+	failed := `{"state":"failed","error":{"code":"mock_failed","message":"x"}}`
+	f := controlRunner("pause", failed)
+	code, out, _ := run(t, f, "pause")
+	if code != 0 || out != failed+"\n" {
+		t.Fatalf("exit %d: %q", code, out)
 	}
 }
