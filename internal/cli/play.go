@@ -32,6 +32,17 @@ func speedGiven(fs *flag.FlagSet) bool {
 	return given
 }
 
+// routeGiven reports whether --route was written, so that an empty --route is an error, not "absent".
+func routeGiven(fs *flag.FlagSet) bool {
+	given := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "route" {
+			given = true
+		}
+	})
+	return given
+}
+
 type playStatus struct {
 	State     string          `json:"state"`
 	StartedAt string          `json:"started_at"`
@@ -50,7 +61,10 @@ func readStatus(ctx context.Context, c *device.Client) (playStatus, json.RawMess
 	return s, raw, nil
 }
 
-func playCommand(ctx context.Context, g globalFlags, env Env, speedSet bool, args []string) result {
+func playCommand(ctx context.Context, g globalFlags, env Env, speedSet, routeSet bool, args []string) result {
+	if routeSet && g.Route == "" {
+		return result{err: clierr.New("usage", "--route needs a saved route name or id")}
+	}
 	if g.Route != "" {
 		if len(args) != 0 {
 			return result{err: clierr.New("usage", "play takes a GPX file or --route, not both")}

@@ -185,3 +185,31 @@ func TestRoutesProRequired(t *testing.T) {
 		t.Fatalf("exit %d: %s", code, out)
 	}
 }
+
+func TestPlayRouteParsing(t *testing.T) {
+	cases := []struct {
+		args    []string
+		wantArg string
+	}{
+		{[]string{"play", "--route=Alpes"}, idAlpes},
+		{[]string{"play", "--speed", "30", "--route", "Alpes"}, idAlpes + ",30"},
+		{[]string{"play", "--route", "Alpes", "--speed", "30"}, idAlpes + ",30"},
+	}
+	for _, c := range cases {
+		f := routePlayRunner(routesJ, c.wantArg, "simulating")
+		code, out, _ := runEnv(t, f, fakeClock, c.args...)
+		if code != 0 || !f.called(provider("play_saved")+" --arg "+c.wantArg) {
+			t.Fatalf("%v: exit %d: %s calls %v", c.args, code, out, f.calls)
+		}
+	}
+}
+
+func TestPlayRouteEmpty(t *testing.T) {
+	for _, args := range [][]string{{"play", "--route", ""}, {"play", "--route=", "file.gpx"}, {"play", "--route="}} {
+		f := playRunner("34")
+		code, out, _ := run(t, f, args...)
+		if code != 1 || errCode(t, out) != "usage" || !strings.Contains(out, "--route needs a saved route name or id") || len(f.calls) != 0 {
+			t.Fatalf("%v: exit %d: %s calls %v", args, code, out, f.calls)
+		}
+	}
+}

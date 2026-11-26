@@ -45,6 +45,9 @@ Commands:
   play      play <file.gpx> [--speed km/h] [--wait] [--timeout duration]
   play      play --route <name|id> [--speed km/h] [--wait] [--timeout duration]
   point     point <lat> <lon> [--accuracy m]: hold a fixed position
+  speed     speed <km/h>: change the speed of the running or paused route
+  pause     pause the running route
+  resume    resume the paused route
   version   print the CLI and app versions
 `
 
@@ -138,9 +141,15 @@ func Run(args []string, env Env) int {
 	case "routes":
 		return finish(env, routesCommand(ctx, g, env))
 	case "play":
-		return finish(env, playCommand(ctx, g, env, speedGiven(fs), fs.Args()[1:]))
+		return finish(env, playCommand(ctx, g, env, speedGiven(fs), routeGiven(fs), fs.Args()[1:]))
 	case "point":
 		return finish(env, pointCommand(ctx, g, env, accuracyGiven(fs), fs.Args()[1:]))
+	case "speed":
+		return finish(env, speedCommand(ctx, g, env, fs.Args()[1:]))
+	case "pause":
+		return finish(env, pauseResumeCommand(ctx, g, env, "pause", "pause a route", fs.Args()[1:]))
+	case "resume":
+		return finish(env, pauseResumeCommand(ctx, g, env, "resume", "resume a route", fs.Args()[1:]))
 	case "version":
 		return finish(env, versionCommand(ctx, g, env))
 	default:
