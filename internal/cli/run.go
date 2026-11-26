@@ -29,6 +29,7 @@ type Env struct {
 
 type globalFlags struct {
 	Serial, Package, Adb string
+	Route                string
 	Speed, Accuracy      float64
 	Timeout              time.Duration
 	Wait                 bool
@@ -40,7 +41,9 @@ Commands:
   setup     grant the permissions MockRoute needs and report what is missing
   status    print the state of MockRoute
   stop      stop the running simulation
+  routes    list the saved routes
   play      play <file.gpx> [--speed km/h] [--wait] [--timeout duration]
+  play      play --route <name|id> [--speed km/h] [--wait] [--timeout duration]
   point     point <lat> <lon> [--accuracy m]: hold a fixed position
   version   print the CLI and app versions
 `
@@ -53,6 +56,7 @@ func newFlagSet(g *globalFlags) *flag.FlagSet {
 	fs.StringVar(&g.Serial, "serial", "", "")
 	fs.StringVar(&g.Package, "package", "", "")
 	fs.StringVar(&g.Adb, "adb", "", "")
+	fs.StringVar(&g.Route, "route", "", "")
 	fs.Float64Var(&g.Speed, "speed", 0, "")
 	fs.Float64Var(&g.Accuracy, "accuracy", 0, "")
 	fs.DurationVar(&g.Timeout, "timeout", 0, "")
@@ -131,6 +135,8 @@ func Run(args []string, env Env) int {
 		return finish(env, runSetupCommand(ctx, g, env))
 	case "status", "stop":
 		return finish(env, passThrough(ctx, g, env, cmd))
+	case "routes":
+		return finish(env, routesCommand(ctx, g, env))
 	case "play":
 		return finish(env, playCommand(ctx, g, env, speedGiven(fs), fs.Args()[1:]))
 	case "point":
@@ -212,7 +218,7 @@ func passThrough(ctx context.Context, g globalFlags, env Env, method string) res
 	if err != nil {
 		return result{err: err}
 	}
-	raw, err := c.StatusCall(ctx, method)
+	raw, err := c.StatusCall(ctx, method, "")
 	if err != nil {
 		return result{err: err}
 	}

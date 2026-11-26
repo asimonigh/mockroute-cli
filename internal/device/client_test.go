@@ -277,3 +277,20 @@ func TestSendGPXContentWriteUnsupportedFallsBackToPush(t *testing.T) {
 		t.Fatalf("argv %v", f.argv)
 	}
 }
+
+func TestStatusCallArg(t *testing.T) {
+	f := &fakeRunner{out: bundle(`{"state":"simulating"}`)}
+	c := newClient(f)
+	if _, err := c.StatusCall(context.Background(), "speed", "40"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.StatusCall(context.Background(), "status", ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(f.argv[0], " "); !strings.HasSuffix(got, "--method speed --arg 40") {
+		t.Fatalf("got %s", got)
+	}
+	if got := strings.Join(f.argv[1], " "); !strings.HasSuffix(got, "--method status") {
+		t.Fatalf("got %s", got)
+	}
+}

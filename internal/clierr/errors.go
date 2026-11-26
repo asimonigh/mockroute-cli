@@ -30,9 +30,9 @@ func (e *Error) ExitCode() int {
 		return 4
 	case "setup_incomplete", "setup_failed":
 		return 5
-	case "invalid_gpx", "invalid_speed", "invalid_coordinates", "invalid_accuracy":
+	case "invalid_gpx", "invalid_speed", "invalid_coordinates", "invalid_accuracy", "route_not_found", "ambiguous_route":
 		return 6
-	case "start_failed", "mock_failed", "stopped":
+	case "start_failed", "mock_failed", "stopped", "no_route":
 		return 7
 	case "timeout":
 		return 8

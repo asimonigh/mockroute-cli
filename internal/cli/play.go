@@ -39,7 +39,7 @@ type playStatus struct {
 }
 
 func readStatus(ctx context.Context, c *device.Client) (playStatus, json.RawMessage, error) {
-	raw, err := c.StatusCall(ctx, "status")
+	raw, err := c.StatusCall(ctx, "status", "")
 	if err != nil {
 		return playStatus{}, nil, err
 	}
@@ -51,14 +51,20 @@ func readStatus(ctx context.Context, c *device.Client) (playStatus, json.RawMess
 }
 
 func playCommand(ctx context.Context, g globalFlags, env Env, speedSet bool, args []string) result {
-	if len(args) != 1 {
+	if g.Route != "" {
+		if len(args) != 0 {
+			return result{err: clierr.New("usage", "play takes a GPX file or --route, not both")}
+		}
+	} else if len(args) != 1 {
 		return result{err: clierr.New("usage", "play needs exactly one GPX file")}
 	}
-	path := args[0]
-	if info, err := os.Stat(path); err != nil {
-		return result{err: clierr.New("file_not_found", "cannot open %s: %v", path, err)}
-	} else if info.IsDir() {
-		return result{err: clierr.New("file_not_found", "%s is a directory, not a GPX file", path)}
+	if g.Route == "" {
+		path := args[0]
+		if info, err := os.Stat(path); err != nil {
+			return result{err: clierr.New("file_not_found", "cannot open %s: %v", path, err)}
+		} else if info.IsDir() {
+			return result{err: clierr.New("file_not_found", "%s is a directory, not a GPX file", path)}
+		}
 	}
 	speedArg := ""
 	if speedSet {
@@ -75,18 +81,33 @@ func playCommand(ctx context.Context, g globalFlags, env Env, speedSet bool, arg
 	if _, err := runSetup(ctx, c); err != nil {
 		return result{err: err}
 	}
-	sdk, err := c.SDKInt(ctx)
+	var loaded json.RawMessage
+	if g.Route != "" {
+		loaded, err = loadSavedRoute(ctx, c, g.Route, speedArg)
+	} else {
+		loaded, err = loadGPX(ctx, c, args[0], speedArg)
+	}
 	if err != nil {
 		return result{err: err}
+	}
+	return startAndReport(ctx, g, env, c, loaded)
+}
+
+func loadGPX(ctx context.Context, c *device.Client, path, speedArg string) (json.RawMessage, error) {
+	sdk, err := c.SDKInt(ctx)
+	if err != nil {
+		return nil, err
 	}
 	loadMethod, err := c.SendGPX(ctx, path, sdk)
 	if err != nil {
-		return result{err: err}
+		return nil, err
 	}
-	loaded, err := c.Call(ctx, loadMethod, speedArg)
-	if err != nil {
-		return result{err: err}
-	}
+	return c.Call(ctx, loadMethod, speedArg)
+}
+
+// startAndReport starts what [loaded] prepared, waits for the simulation (and for its arrival with
+// --wait) and builds the answer: the status plus the pace_source of the load answer.
+func startAndReport(ctx context.Context, g globalFlags, env Env, c *device.Client, loaded json.RawMessage) result {
 	var load struct {
 		PaceSource json.RawMessage `json:"pace_source"`
 	}

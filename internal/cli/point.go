@@ -39,10 +39,7 @@ func pointCommand(ctx context.Context, g globalFlags, env Env, accuracySet bool,
 	}
 	answer, err := c.Call(ctx, "point", formatPointArg(lat, lon, g.Accuracy, accuracySet))
 	if err != nil {
-		if ce, ok := err.(*clierr.Error); ok && ce.Code == "unknown_method" {
-			return result{err: clierr.New("app_outdated", "This MockRoute version cannot set a fixed point from the CLI. Update MockRoute.")}
-		}
-		return result{err: err}
+		return result{err: newMethodError(err, "set a fixed point")}
 	}
 	var probe struct {
 		State string `json:"state"`

@@ -54,7 +54,7 @@ type setupStatus struct {
 
 func readSetup(ctx context.Context, c *device.Client) (setupStatus, error) {
 	var s setupStatus
-	raw, err := c.StatusCall(ctx, "status")
+	raw, err := c.StatusCall(ctx, "status", "")
 	if err != nil {
 		return s, err
 	}
